@@ -13,9 +13,9 @@ import torch
 
 # Custom packages
 from src.metric import MyAccuracy
+from src.metric import MyF1Score
 import src.config as cfg
 from src.util import show_setting
-
 
 # [TODO: Optional] Rewrite this class if you want
 class MyNetwork(AlexNet):
@@ -23,6 +23,27 @@ class MyNetwork(AlexNet):
         super().__init__()
 
         # [TODO] Modify feature extractor part in AlexNet
+        # Modify feature extractor part in AlexNet
+        # Example: Replace the convolution layer
+        new_first_layer = nn.Sequential(
+                            nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2))
+        self.features[0] = new_first_layer
+
+        # # Example: Add batch normalization after each convolution layer
+        new_features = []
+        for feature in self.features:
+            new_features.append(feature)
+            if isinstance(feature, nn.Conv2d):
+                new_features.append(nn.BatchNorm2d(feature.out_channels))
+        
+        # # Reassign the modified features to the model
+        self.features = nn.Sequential(*new_features)
+
+        # # Add dropout layer
+        # self.classifier[5] = nn.Dropout(p=0.5)
+
+        # Modify classifier for fine-tuning to the specific number of classes
+        self.classifier[6] = nn.Linear(self.classifier[6].in_features, cfg.NUM_CLASSES)
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -57,6 +78,9 @@ class SimpleClassifier(LightningModule):
         # Metric
         self.accuracy = MyAccuracy()
 
+        # Add F1 score metric
+        self.f1_score = MyF1Score()
+
         # Hyperparameters
         self.save_hyperparameters()
 
@@ -79,21 +103,24 @@ class SimpleClassifier(LightningModule):
     def training_step(self, batch, batch_idx):
         loss, scores, y = self._common_step(batch)
         accuracy = self.accuracy(scores, y)
-        self.log_dict({'loss/train': loss, 'accuracy/train': accuracy},
+        f1 = self.f1_score(scores, y)
+        self.log_dict({'loss/train': loss, 'accuracy/train': accuracy, 'f1/train': f1},
                       on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         loss, scores, y = self._common_step(batch)
         accuracy = self.accuracy(scores, y)
-        self.log_dict({'loss/val': loss, 'accuracy/val': accuracy},
-                      on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        f1 = self.f1_score(scores, y)
+        self.log_dict({'loss/val': loss, 'accuracy/val': accuracy, 'f1/val': f1}, 
+                        on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self._wandb_log_image(batch, batch_idx, scores, frequency = cfg.WANDB_IMG_LOG_FREQ)
 
     def _common_step(self, batch):
         x, y = batch
         scores = self.forward(x)
         loss = self.loss_fn(scores, y)
+        self.f1_score.update(scores, y)
         return loss, scores, y
 
     def _wandb_log_image(self, batch, batch_idx, preds, frequency = 100):

@@ -8,6 +8,7 @@ from lightning.pytorch.loggers.wandb import WandbLogger
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning import Trainer
 import torch
+import wandb
 
 # Custom packages
 from src.dataset import TinyImageNetDatasetModule
@@ -18,6 +19,7 @@ torch.set_float32_matmul_precision('medium')
 
 
 if __name__ == "__main__":
+    wandb.login(key='876a2d1969bd732b9a7bed607b14d953d291b637', relogin=True)
 
     model = SimpleClassifier(
         model_name = cfg.MODEL_NAME,
@@ -29,6 +31,8 @@ if __name__ == "__main__":
     datamodule = TinyImageNetDatasetModule(
         batch_size = cfg.BATCH_SIZE,
     )
+
+    wandb.init(project=cfg.WANDB_PROJECT, entity=cfg.WANDB_ENTITY, name=cfg.WANDB_NAME)
 
     wandb_logger = WandbLogger(
         project = cfg.WANDB_PROJECT,
