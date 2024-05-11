@@ -10,6 +10,7 @@ from torch import nn
 from torchvision import models
 from torchvision.models.alexnet import AlexNet
 import torch
+import pytorch_lightning as pl
 
 # Custom packages
 from src.metric import MyAccuracy
@@ -29,17 +30,17 @@ class MyNetwork(AlexNet):
                             nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2))
         self.features[0] = new_first_layer
 
-        # # Example: Add batch normalization after each convolution layer
+        # Example: Add batch normalization after each convolution layer
         new_features = []
         for feature in self.features:
             new_features.append(feature)
             if isinstance(feature, nn.Conv2d):
                 new_features.append(nn.BatchNorm2d(feature.out_channels))
         
-        # # Reassign the modified features to the model
+        # Reassign the modified features to the model
         self.features = nn.Sequential(*new_features)
 
-        # # Add dropout layer
+        # Add dropout layer
         # self.classifier[5] = nn.Dropout(p=0.5)
 
         # Modify classifier for fine-tuning to the specific number of classes
@@ -67,6 +68,12 @@ class SimpleClassifier(LightningModule):
         # Network
         if model_name == 'MyNetwork':
             self.model = MyNetwork()
+        elif model_name == 'efficientnet':
+            self.model = models.efficientnet_b0(pretrained=True)
+            self.model.classifier[1] = nn.Linear(self.model.classifier[1].in_features, num_classes)
+        elif model_name == 'convnext':
+            self.model = models.convnext_small(pretrained=True)
+            self.model.classifier[2] = nn.Linear(self.model.classifier[2].in_features, num_classes)
         else:
             models_list = models.list_models()
             assert model_name in models_list, f'Unknown model name: {model_name}. Choose one from {", ".join(models_list)}'
